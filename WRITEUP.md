@@ -1,59 +1,63 @@
 # Project Write-Up
 
-You can use this document as a template for providing your project write-up. However, if you
-have a different format you prefer, feel free to use it as long as you answer all required
-questions.
-
 ## Explaining Custom Layers
 
-The process behind converting custom layers involves...
+The process of adding custom layers depends on the framework used to build these layers.
 
-Some of the potential reasons for handling custom layers are...
+- For Caffe and Tensorflow, one option is to register custom layers as extension
+- For caffe another option could be to calculate the output shape of the layer (requires caffe)
+- In Tensorflow you can replace the unsupported subgraph with another subgraph
+
+Potential Reasons for adding the custom layers could include some layer that is essential for the model and is not supported by OpenVINO.
+This new layer is efficient in terms of performance.
 
 ## Comparing Model Performance
 
-My method(s) to compare models before and after conversion to Intermediate Representations
-were...
+There are two main metrics that are to be seen here.
+1. Accuracy
+2. Speed
 
-The difference between model accuracy pre- and post-conversion was...
+Accuracy can be simply measured by comparing the results with human labelled data.
 
-The size of the model pre- and post-conversion was...
+For speed we can measure the inference time.
 
-The inference time of the model pre- and post-conversion was...
+After conversion, 
+
+- Accuracy decreases (but is negligible) because of decrease in floating point precision.
+
+- Speed increases because of freezing, fusion and quantization.
+
+- The size of the model also decreases, e.g. in my case the preprocessing block was removed.
+
+|System |Accuracy (mAP)  |Time (ms)  |Size (MB)  |
+|---|---|---|---|
+|Original   |21   |55   |28   |
+|OpenVINO Optimization   |21   |48   |26   |
+
 
 ## Assess Model Use Cases
 
-Some of the potential use cases of the people counter app are...
+- **Customer Interest**
+We can see how much time customers are spending near a specific category
 
-Each of these use cases would be useful because...
+- **Security**
+Let's say a person is near the cashier, this is the time when one can stay alert, rest of the time there's less risk
+
+- **Frequency of People Entering**
+Consider a small pathway or something similar, we are interested if it will suffice, i.e. if the person entering increase a lot, we might look for an alternative way.
+
 
 ## Assess Effects on End User Needs
 
 Lighting, model accuracy, and camera focal length/image size have different effects on a
-deployed edge model. The potential effects of each of these are as follows...
+deployed edge model. The potential effects of each of these are as follows, 
+
+- Lighting may be required all the times, e.g. in cloudy situation hunmans can see fine, but the camera quality suffers
+
+- User will need a cctv camera, placed correctly near the region of interest.
+
+- Model needs to be accurate enough, also testing of the required threshold may be needed.
 
 ## Model Research
 
-[This heading is only required if a suitable model was not found after trying out at least three
-different models. However, you may also use this heading to detail how you converted 
-a successful model.]
-
-In investigating potential people counter models, I tried each of the following three models:
-
-- Model 1: [Name]
-  - [Model Source]
-  - I converted the model to an Intermediate Representation with the following arguments...
-  - The model was insufficient for the app because...
-  - I tried to improve the model for the app by...
-  
-- Model 2: [Name]
-  - [Model Source]
-  - I converted the model to an Intermediate Representation with the following arguments...
-  - The model was insufficient for the app because...
-  - I tried to improve the model for the app by...
-
-- Model 3: [Name]
-  - [Model Source]
-  - I converted the model to an Intermediate Representation with the following arguments...
-  - The model was insufficient for the app because...
-  - I tried to improve the model for the app by...
+Tried various models, such as SSDv1, SSDv2, FRCNN. SSDv1 was the fastest, also you need to tune the probability threshold value for each model in order to get optimal results.
