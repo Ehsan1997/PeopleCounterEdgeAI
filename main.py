@@ -94,7 +94,14 @@ def infer_on_stream(args, client):
     infer_network.load_model(args.model, args.device, args.cpu_extension)
     net_input_shape = infer_network.get_input_shape()
     ### TODO: Handle the input stream ###
-    cap = cv2.VideoCapture(args.input)
+    input_name = args.input
+    if input_name.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')):
+        handle_image(input_name)
+        exit(0)
+    if 'CAM' in input_name:
+        cap = cv2.VideoCapture(0)
+    else:
+        cap = cv2.VideoCapture(input_name)
     cap.open(args.input)
     
     # Shape of the input
@@ -129,9 +136,12 @@ def infer_on_stream(args, client):
             ### TODO: Get the results of the inference request ###
             result = infer_network.get_output()
             ### TODO: Extract any desired stats from the results ###
+            # For every frame reset the counter
             people_count = 0
+            # Check every predicted box
             for box in result[0][0]:
                 # Greater than threshold? Then draw
+                # Also 1 is the id for person
                 if box[2] > float(args.prob_threshold) and box[1]==1:
                     people_count+=1
                     points = box[3:]
@@ -139,16 +149,24 @@ def infer_on_stream(args, client):
                     points[[1,3]] = points[[1,3]] * height
                     cv2.rectangle(frame, (points[0], points[1]), (points[2], points[3]), (0, 0, 255), 2)
                     break
+            # A new person has entered
             if people_count > 0 and not new_person:
                 new_person= True
+                # Increase the total count
                 total_count += 1
+                # Start the timer
                 duration = time.time()
+            # The person may have left
             elif people_count == 0 and new_person:
+                # Let's check for 5 more frame if the person has left
                 patience += 1
+                # Person has left for sure
                 if patience == 5:
+                    # Stop the timer and publish
                     new_person = False
                     duration = time.time() - duration
                     client.publish("person/duration", json.dumps({"duration": duration}))
+                    # Reset duration and patience
                     duration = 0
                     patience = 0
 
@@ -156,11 +174,46 @@ def infer_on_stream(args, client):
             ### current_count, total_count and duration to the MQTT server ###
             ### Topic "person": keys of "count" and "total" ###
             ### Topic "person/duration": key of "duration" ###
+            # publish the person count.
             client.publish("person", json.dumps({"count": people_count, "total": total_count}))
 #         ### TODO: Send the frame to the FFMPEG server ###
         sys.stdout.buffer.write(frame)
         ### TODO: Write an output image if `single_image_mode` ###
         sys.stdout.flush()
+        
+def handle_image(image):
+    frame = cv2.imread(image)
+    p_frame = cv2.resize(frame, (net_input_shape[3], net_input_shape[2]))
+    p_frame = p_frame.transpose((2, 0, 1))
+    p_frame = p_frame.reshape(1, *p_frame.shape)
+    ### TODO: Start asynchronous inference for specified request ###
+    infer_network.exec_net(p_frame)
+    ### TODO: Wait for the result ###
+    if infer_network.wait() == 0:
+        ### TODO: Get the results of the inference request ###
+        result = infer_network.get_output()
+        ### TODO: Extract any desired stats from the results ###
+        people_count = 0
+        for box in result[0][0]:
+            # Greater than threshold? Then draw
+            if box[2] > float(args.prob_threshold) and box[1]==1:
+                people_count+=1
+                points = box[3:]
+                points[[0,2]] = points[[0,2]] * width
+                points[[1,3]] = points[[1,3]] * height
+                cv2.rectangle(frame, (points[0], points[1]), (points[2], points[3]), (0, 0, 255), 2)
+                
+    client.publish("person/duration", json.dumps({"duration": 0}))
+
+                            ### TODO: Calculate and send relevant information on ###
+                            ### current_count, total_count and duration to the MQTT server ###
+                            ### Topic "person": keys of "count" and "total" ###
+                            ### Topic "person/duration": key of "duration" ###
+    client.publish("person", json.dumps({"count": people_count, "total": people_count}))
+                            #         ### TODO: Send the frame to the FFMPEG server ###
+    sys.stdout.buffer.write(frame)
+                            ### TODO: Write an output image if `single_image_mode` ###
+    sys.stdout.flush()
 
 def main():
     """
